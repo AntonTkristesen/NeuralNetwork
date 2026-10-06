@@ -1,0 +1,30 @@
+# Look of the page: black text on white, one typeface (Geist) plus its mono version for numbers.
+# Colour is saved for the data, so buttons and sliders stay black.
+# Streamlit reads this file when you start the app from this folder.
+
+[theme]
+base = "light"
+primaryColor = "#15171C"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F6F9"
+textColor = "#15171C"
+borderColor = "#E3E7EE"
+linkColor = "#2A78D6"
+blueColor = "#2A78D6"
+orangeColor = "#EB6834"
+greenColor = "#0CA30C"
+redColor = "#D03B3B"
+grayColor = "#69707D"
+grayTextColor = "#69707D"
+baseRadius = "10px"
+buttonRadius = "full"
+font = "Geist:https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap"
+headingFont = "Geist:https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap"
+codeFont = "Geist Mono:https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap"
+headingFontWeights = 600
+headingFontSizes = ["2.75rem", "1.6rem", "1.25rem"]
+metricValueFontSize = "1.75rem"
+metricValueFontWeight = 600
+
+[client]
+toolbarMode = "minimal"  # hides the "Deploy" button

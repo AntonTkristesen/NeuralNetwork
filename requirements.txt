@@ -1,0 +1,7 @@
+# Tested with Python 3.14 on macOS (Apple Silicon)
+streamlit==1.65.0
+keras==3.15.1
+jax==0.11.2   # Keras backend (see the top of app.py)
+numpy==2.5.3
+pandas==3.0.6
+altair==6.3.0
