@@ -10,7 +10,7 @@ Files:
   app.py     the page: tabs, buttons and what happens when you click them
   data.py    loading the UCI HAR dataset (and what is in it)
   model.py   the neural network: hyperparameters, training with live updates, the forward pass
-  charts.py  the network drawing, the accuracy chart and the confusion matrix
+  charts.py  the network drawing, the cost and accuracy charts and the confusion matrix
   views.py   what the two tabs show
   style.py   colours, fonts and page CSS (the theme itself is in .streamlit/config.toml)
 
@@ -45,6 +45,7 @@ with train_tab:
         show_settings(data, untrained.count_params())
 
 if train_clicked:
+    # train() in model.py builds a NEW network and runs Keras' built-in training (model.fit()).
     # st.session_state survives when Streamlit reruns the script (on every click),
     # so the trained model is still there after the next click.
     st.session_state.model, st.session_state.result = train(

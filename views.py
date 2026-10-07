@@ -5,7 +5,7 @@ import time
 import numpy as np
 import streamlit as st
 
-from charts import accuracy_chart, confusion_chart, network_chart
+from charts import accuracy_chart, confusion_chart, cost_chart, network_chart
 from data import WINDOW_STEP_SECONDS
 from model import BATCH_SIZE, DROPOUT, L2, LEARNING_RATE, N_LAYERS, N_NEURONS, PATIENCE, forward, get_weights
 
@@ -42,6 +42,11 @@ def show_training(area, history, cm, weights, data, result=None):
             draw_network(weights, x, true, data)
 
         if last:
+            with st.container(border=True):
+                st.markdown("**Cost**")
+                st.caption("The number gradient descent makes smaller after every batch: cross-entropy "
+                           "(how wrong the guesses are) + the L2 penalty for large weights. Lower is better.")
+                st.altair_chart(cost_chart(history))
             left, right = st.columns([2, 3])  # the confusion matrix needs room for 6 labels side by side
             with left.container(border=True):
                 st.markdown("**Accuracy**")

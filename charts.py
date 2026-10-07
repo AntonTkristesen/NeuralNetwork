@@ -164,16 +164,17 @@ def network_chart(weights, x, names, feature_names, true):
     return styled(chart.properties(height=470))
 
 
-def accuracy_chart(history):
-    """Accuracy on the training data and on the validation persons, epoch by epoch.
+def history_chart(history, measure, scale, axis_format, tooltip_format):
+    """One measure ("accuracy" or "cost") on the training data and on the validation persons, epoch by epoch.
     Point at the chart to read the exact values."""
+    columns = [f"Training {measure}", f"Validation {measure}"]
     wide = pd.DataFrame(history)
-    long = wide.melt("Epoch", ["Training accuracy", "Validation accuracy"], var_name="data", value_name="accuracy")
-    long["data"] = long["data"].str.removesuffix(" accuracy")
+    long = wide.melt("Epoch", columns, var_name="data", value_name=measure)
+    long["data"] = long["data"].str.removesuffix(f" {measure}")
     lines = alt.Chart(long).mark_line(strokeWidth=2, strokeCap="round", strokeJoin="round").encode(
         x=alt.X("Epoch:Q", axis=alt.Axis(grid=False, tickMinStep=1)),
-        y=alt.Y("accuracy:Q", title=None, scale=alt.Scale(domain=[0, 1]),
-                axis=alt.Axis(format=".0%", tickCount=5, domain=False, ticks=False)),
+        y=alt.Y(f"{measure}:Q", title=None, scale=scale,
+                axis=alt.Axis(format=axis_format, tickCount=5, domain=False, ticks=False)),
         color=alt.Color("data:N", scale=alt.Scale(domain=["Training", "Validation"], range=[GRAY, BLUE]),
                         legend=alt.Legend(title=None, orient="top", symbolType="stroke", symbolStrokeWidth=2)),
     )
@@ -182,11 +183,20 @@ def accuracy_chart(history):
     rule = alt.Chart(wide).mark_rule(color=GRAY).encode(
         x="Epoch:Q",
         opacity=alt.when(hover).then(alt.value(1)).otherwise(alt.value(0)),
-        tooltip=[alt.Tooltip("Epoch:Q", format=".2~f"),
-                 alt.Tooltip("Training accuracy:Q", format=".1%"),
-                 alt.Tooltip("Validation accuracy:Q", format=".1%")],
+        tooltip=[alt.Tooltip("Epoch:Q", format=".2~f")]
+                + [alt.Tooltip(f"{c}:Q", format=tooltip_format) for c in columns],
     ).add_params(hover)
     return styled(alt.layer(lines, rule).properties(height=260))
+
+
+def accuracy_chart(history):
+    """Share of rows guessed right. Higher is better."""
+    return history_chart(history, "accuracy", alt.Scale(domain=[0, 1]), ".0%", ".1%")
+
+
+def cost_chart(history):
+    """The cost gradient descent makes smaller. Lower is better; the axis starts at 0."""
+    return history_chart(history, "cost", alt.Scale(zero=True), ".1f", ".3f")
 
 
 def confusion_chart(cm, names):
