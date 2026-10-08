@@ -2,12 +2,15 @@ import math
 import os
 import sys
 import time
+from pathlib import Path
 
 os.environ.setdefault("KERAS_BACKEND", "jax")
 
 import keras
 import numpy as np
 
+# Backpropagation works out, for every weight, which direction lowers the cost (the gradient).
+# Gradient descent (Adam) then moves the weights a small step in that direction.
 N_NEURONS = 256
 N_LAYERS = 2
 DROPOUT = 0.2
@@ -17,6 +20,7 @@ BATCH_SIZE = 64
 PATIENCE = 15
 SEED = 42
 EARLY_SNAPSHOTS = (1, 2, 4, 8, 16, 32, 64)
+MODEL_FILE = Path(__file__).parent / "model.keras"  # the trained network, saved by the app, used by iphone.py
 
 
 def build_model(n_inputs, n_classes):

@@ -13,16 +13,21 @@ Files:
   charts.py  the network drawing, the cost and accuracy charts and the confusion matrix
   views.py   what the two tabs show
   style.py   colours, fonts and page CSS (the theme itself is in .streamlit/config.toml)
+  translate.py  turns iPhone sensor readings into the 561 numbers the network knows
+  iphone.py     a small server for testing the trained network on your own iPhone (iphone.html)
 
 Run (from this folder, so the theme in .streamlit/config.toml is used):
     pip install -r requirements.txt
     streamlit run app.py
+
+Test on your iPhone (after training once; training saves the network to model.keras):
+    python iphone.py
 """
 
 import streamlit as st
 
 from data import load_dataset
-from model import build_model, get_weights, train
+from model import MODEL_FILE, build_model, get_weights, train
 from style import PAGE_CSS
 from views import show_settings, show_test, show_training
 
@@ -50,6 +55,7 @@ if train_clicked:
     # so the trained model is still there after the next click.
     st.session_state.model, st.session_state.result = train(
         data, redraw=lambda history, cm, weights: show_training(area, history, cm, weights, data))
+    st.session_state.model.save(MODEL_FILE)  # so iphone.py can test this network on a real iPhone
 
 if "result" in st.session_state:
     r = st.session_state.result

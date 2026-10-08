@@ -5,3 +5,4 @@ jax==0.11.2   # Keras backend (see the top of app.py)
 numpy==2.5.3
 pandas==3.0.6
 altair==6.3.0
+scipy==1.18.1   # filters and statistics in translate.py

@@ -1,0 +1,240 @@
+<!doctype html>
+<!-- The iPhone page, served by iphone.py. It reads the phone's motion sensors, sends the raw readings to
+     iphone.py every 1.28 s and shows the network's guess. All translation happens in translate.py. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Activity recognition</title>
+<style>
+  :root {
+    --ink: #15171C; --muted: #69707D; --hairline: #E3E7EE; --track: #EEF1F5; --panel: #F4F6F9;
+    --blue: #2A78D6; --gray: #B4BAC4; --green: #0CA30C; --green-text: #0A7D0A; --red: #D03B3B;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto; max-width: 520px; padding: 28px 16px 48px;
+    font: 16px/1.45 -apple-system, system-ui, sans-serif; color: var(--ink); background: #fff;
+    -webkit-text-size-adjust: 100%;
+  }
+  h1 { font-size: 1.9rem; font-weight: 600; letter-spacing: -0.03em; margin: 0 0 4px; }
+  h2 { font-size: 1rem; font-weight: 600; margin: 0 0 8px; }
+  p { margin: 0 0 12px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 0.875rem; }
+  .card { border: 1px solid var(--hairline); border-radius: 10px; padding: 16px; margin-top: 16px; }
+  .hidden { display: none; }
+  ol { margin: 0 0 4px; padding-left: 1.25em; }
+  li { margin-bottom: 4px; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .primary { background: var(--ink); color: #fff; border: 0; border-radius: 999px; padding: 12px 24px; font-weight: 600; }
+  .quiet { background: none; border: 0; padding: 4px 0; color: var(--muted); text-decoration: underline; }
+  .error { color: var(--red); }
+  .guess { font-size: 2.75rem; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
+  .guess.good { color: var(--green-text); }
+  .guess.bad { color: var(--red); }
+  .bars { display: grid; grid-template-columns: auto 1fr 3.2em; gap: 6px 10px; align-items: center; margin-top: 14px; }
+  .bar { height: 10px; border-radius: 5px; background: var(--track); overflow: hidden; }
+  .bar > span { display: block; height: 100%; width: 0; background: var(--gray); transition: width 0.3s; }
+  .bar > span.top { background: var(--blue); }
+  .bar > span.good { background: var(--green); }
+  .bar > span.bad { background: var(--red); }
+  .num { font-variant-numeric: tabular-nums; text-align: right; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
+  .chips button { border: 1px solid var(--hairline); background: #fff; border-radius: 999px; padding: 8px 14px; }
+  .chips button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 6px 0; border-bottom: 1px solid var(--hairline); }
+  th:first-child, td:first-child { text-align: left; }
+  th { font-weight: 500; color: var(--muted); font-size: 0.875rem; }
+  tfoot td { font-weight: 600; border-bottom: 0; }
+  label { display: flex; gap: 8px; align-items: center; }
+</style>
+</head>
+<body>
+  <h1>Activity recognition</h1>
+  <p class="muted">Your network, guessing what you are doing from this iPhone's motion sensors.</p>
+
+  <section class="card" id="setup">
+    <h2>1. Lay the phone flat on a table, screen up</h2>
+    <p class="muted small">Then tap Start and leave it still for a second. The dataset's phone was an Android,
+      and iPhones report gravity the other way round. Lying flat shows which way this one does.</p>
+    <button class="primary" id="start">Start</button>
+    <p class="error small" id="setup-error" role="alert"></p>
+  </section>
+
+  <section class="card hidden" id="wear">
+    <h2>2. Wear it like the dataset's volunteers</h2>
+    <ol>
+      <li>On the <b>left side of your waist</b>, in your waistband or a belt pouch</li>
+      <li>Sideways, <b>screen facing out</b></li>
+      <li><b>Side button pointing up</b>, the top of the phone pointing forward</li>
+    </ol>
+    <p class="muted small" id="sign-note"></p>
+    <label class="small"><input type="checkbox" id="speak" checked> Say each new guess out loud</label>
+  </section>
+
+  <section class="card hidden" id="live" aria-live="polite">
+    <div class="muted small" id="status">Collecting 5 seconds of motion ...</div>
+    <div class="guess" id="guess">–</div>
+    <div class="bars" id="bars"></div>
+    <p class="small muted" id="posture" style="margin: 12px 0 0"></p>
+  </section>
+
+  <section class="card hidden" id="test">
+    <h2>3. Test it: what are you doing?</h2>
+    <p class="muted small">Pick an activity, put the phone back on your hip and do it. Guesses count from 5 seconds
+      after you pick, so you have time to get ready.</p>
+    <div class="chips" id="chips"></div>
+    <table>
+      <thead><tr><th>Activity</th><th>Correct</th><th>Guesses</th><th>Accuracy</th></tr></thead>
+      <tbody id="score"></tbody>
+      <tfoot><tr><td>All</td><td id="all-correct">0</td><td id="all-total">0</td><td id="all-accuracy">–</td></tr></tfoot>
+    </table>
+    <button class="quiet small" id="reset">Reset score</button>
+  </section>
+
+<script>
+const BUFFER_MS = 12800;  // send the last 12.8 s: the gravity filter needs a few seconds of history
+const STEP_MS = 1280;     // a new guess every 1.28 s, like the dataset's windows
+const MIN_MS = 5120;      // first guess after 5.12 s (iphone.py checks the same)
+const GRACE_MS = 5000;    // time to put the phone back on your hip after picking an activity
+
+let readings = [];        // [time ms, ax, ay, az (m/s²), alpha, beta, gamma (degrees/s)]
+let sign = null, names = [], actual = null, countFrom = 0, waiting = false, lastGuess = null, wakeLock = null;
+let score = [];
+const $ = id => document.getElementById(id);
+
+function onMotion(e) {
+  const a = e.accelerationIncludingGravity, r = e.rotationRate || {};
+  if (!a || a.x === null) return;
+  const t = e.timeStamp > 0 ? e.timeStamp : performance.now();
+  readings.push([t, a.x, a.y, a.z, r.alpha || 0, r.beta || 0, r.gamma || 0].map(v => Math.round(v * 1e4) / 1e4));
+  while (readings.length && readings[0][0] < t - BUFFER_MS) readings.shift();
+}
+
+async function post(path, body) {
+  const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const answer = await response.json();
+  if (answer.error) throw new Error(answer.error);
+  return answer;
+}
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function keepScreenOn() {
+  try { wakeLock = await navigator.wakeLock.request("screen"); } catch { wakeLock = null; }
+}
+
+async function start() {
+  $("setup-error").textContent = "";
+  // Speech has to be switched on by a tap on iOS, so say nothing, quietly, right now
+  if ("speechSynthesis" in window) { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); }
+  if (typeof DeviceMotionEvent === "undefined") {
+    $("setup-error").textContent = "This browser has no motion sensors. Open the page in Safari on your iPhone.";
+    return;
+  }
+  if (typeof DeviceMotionEvent.requestPermission === "function") {
+    let permission;
+    try { permission = await DeviceMotionEvent.requestPermission(); } catch (e) { permission = String(e); }
+    if (permission !== "granted") {
+      $("setup-error").textContent = "Safari didn't allow the motion sensors (" + permission + "). Reload the page and tap Allow.";
+      return;
+    }
+  }
+  window.removeEventListener("devicemotion", onMotion);
+  window.addEventListener("devicemotion", onMotion);
+  keepScreenOn();
+  $("start").disabled = true;
+  $("start").textContent = "Measuring ...";
+  readings = [];
+  await sleep(1000);
+  try {
+    if (readings.length < 10) throw new Error("No motion readings arrived. Is Motion & Orientation Access on in Settings → Apps → Safari?");
+    ({ sign, names } = await post("/flat", { readings }));
+  } catch (e) {
+    $("setup-error").textContent = e.message;
+    $("start").disabled = false;
+    $("start").textContent = "Start";
+    return;
+  }
+  $("sign-note").textContent = sign < 0
+    ? "This iPhone reports gravity flipped compared with the dataset's phone, so translate.py flips every acceleration."
+    : "This phone reports gravity like the dataset's phone, so nothing needs flipping.";
+  $("start").textContent = "Started";
+  readings = [];  // start fresh: the next readings are from the phone on your hip
+  score = names.map(() => [0, 0]);
+  drawBars(names.map(() => 0), null);
+  drawChips();
+  drawScore();
+  for (const id of ["wear", "live", "test"]) $(id).classList.remove("hidden");
+  setInterval(guess, STEP_MS);
+}
+
+async function guess() {
+  if (waiting || !readings.length || readings.at(-1)[0] - readings[0][0] < MIN_MS) return;
+  waiting = true;
+  const counted = actual !== null && performance.now() >= countFrom;
+  try {
+    const { probabilities, guess } = await post("/guess", { readings, sign });
+    $("status").textContent = counted ? "You're doing: " + names[actual]
+      : actual !== null ? "Counting starts in a moment ..." : "Live guess";
+    $("guess").textContent = names[guess];
+    $("guess").className = "guess" + (counted ? (guess === actual ? " good" : " bad") : "");
+    drawBars(probabilities, guess);
+    $("posture").textContent = posture();
+    if (counted) { score[actual][0] += guess === actual; score[actual][1] += 1; drawScore(); }
+    if (guess !== lastGuess && $("speak").checked && "speechSynthesis" in window) {
+      speechSynthesis.cancel();
+      speechSynthesis.speak(new SpeechSynthesisUtterance(names[guess]));
+    }
+    lastGuess = guess;
+  } catch (e) {
+    $("status").textContent = "No guess: " + e.message;
+  } finally {
+    waiting = false;
+  }
+}
+
+function posture() {
+  // Upright with the side button up, gravity pulls along the phone's X axis. Upside down shows up as the opposite sign
+  const recent = readings.slice(-60);
+  const x = sign * recent.reduce((sum, r) => sum + r[1], 0) / recent.length / 9.81;
+  return x < -0.7 ? "The phone looks upside down: turn it so the side button points up." : "";
+}
+
+function drawBars(probabilities, top) {
+  const counted = actual !== null && performance.now() >= countFrom;
+  $("bars").innerHTML = names.map((name, i) => {
+    const kind = i !== top ? "" : counted ? (i === actual ? "good" : "bad") : "top";
+    return `<div>${name}</div><div class="bar"><span class="${kind}" style="width:${(probabilities[i] * 100).toFixed(1)}%"></span></div>`
+      + `<div class="num small">${Math.round(probabilities[i] * 100)}%</div>`;
+  }).join("");
+}
+
+function drawChips() {
+  $("chips").innerHTML = names.map((name, i) => `<button aria-pressed="${i === actual}" data-i="${i}">${name}</button>`).join("")
+    + `<button aria-pressed="${actual === null}" data-i="">Nothing</button>`;
+}
+
+function drawScore() {
+  const pct = (c, t) => t ? Math.round(100 * c / t) + "%" : "–";
+  $("score").innerHTML = names.map((name, i) =>
+    `<tr><td>${name}</td><td>${score[i][0]}</td><td>${score[i][1]}</td><td>${pct(...score[i])}</td></tr>`).join("");
+  const c = score.reduce((s, r) => s + r[0], 0), t = score.reduce((s, r) => s + r[1], 0);
+  $("all-correct").textContent = c; $("all-total").textContent = t; $("all-accuracy").textContent = pct(c, t);
+}
+
+$("start").addEventListener("click", start);
+$("chips").addEventListener("click", e => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  actual = button.dataset.i === "" ? null : Number(button.dataset.i);
+  countFrom = performance.now() + GRACE_MS;
+  drawChips();
+});
+$("reset").addEventListener("click", () => { score = names.map(() => [0, 0]); drawScore(); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && sign !== null) keepScreenOn(); });
+</script>
+</body>
+</html>
